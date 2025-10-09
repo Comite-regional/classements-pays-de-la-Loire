@@ -119,6 +119,73 @@ tr.qi-warn td:first-child{ box-shadow: inset 4px 0 rgba(234,88,12,0.6); }
   if (document.readyState !== 'loading') installInterceptor();
   else document.addEventListener('DOMContentLoaded', installInterceptor);
 })();
+
+
+// --- Popup multi-discipline (Option B) ---
+function renderLicencePopup(allRows, preferredDisc){
+  // Build set of disciplines present
+  const discs = Array.from(new Set(allRows.map(r => r.DISCIPLINE || r.DISC || r.discipline || '')));
+  // Sort with preferred first
+  discs.sort((a,b)=> (a===preferredDisc?-1:(b===preferredDisc?1: (a.localeCompare(b)) )));
+  // Create tabs
+  const tabs = discs.map(d => {
+    const label = DISC_LABELS[d] || d || ' ';
+    return `<button class="tab-btn" data-disc="${d}">${label}</button>`;
+  }).join('');
+
+  // Basic styles for tabs (scoped)
+  const styles = `<style>
+    .tabs { display:flex; gap:.5rem; flex-wrap:wrap; margin-bottom:.75rem; }
+    .tab-btn { padding:.35rem .6rem; border:1px solid #ddd; border-radius:.5rem; cursor:pointer; background:#f8f8f8; }
+    .tab-btn.active { background:#eaeaea; font-weight:600; }
+    .tab-content { border-top:1px solid #eee; padding-top:.5rem; }
+    .popup-table { width:100%; border-collapse:collapse; }
+    .popup-table th, .popup-table td { border-bottom:1px solid #f0f0f0; padding:.35rem .4rem; text-align:left; font-size: .9rem; }
+    .muted { color:#777; font-size:.85rem; }
+  </style>`;
+
+  function tableForDisc(d){
+    const rows = allRows.filter(r => (r.DISCIPLINE||r.DISC||r.discipline||'')===d);
+    const head = `<tr>
+      <th>Discipline</th><th>Nom</th><th>Prénom</th><th>Licence</th><th>Club</th><th>Catégorie</th><th>Arme</th><th>Sexe</th><th>Points</th><th>Rang</th>
+    </tr>`;
+    const body = rows.map(r => {
+      const disc = DISC_LABELS[(r.DISCIPLINE||r.DISC||r.discipline||'')] || (r.DISCIPLINE||r.DISC||r.discipline||'');
+      const nom = r.NOM_PERSONNE||r.NOM||'';
+      const prenom = r.PRENOM_PERSONNE||r.PRENOM||'';
+      const lic = r.NUM_LICENCE||r.LICENCE||r.NUMERO_LICENCE||'';
+      const club = [r.NOM_STRUCTURE, r.NOM_CLUB, r.STRUCTURE].filter(Boolean).join(' ') || '';
+      const cat = r.CATEGORIE||r.CAT||r.CATEGORIE_CLUB||'';
+      const arme = r.ARME||r.ARC||'';
+      const sexe = r.SEXE||'';
+      const pts = r.POINTS||r.SCORE||r.TOTAL||r.BEST||'';
+      const rang = r.RANG||r.RANK||'';
+      return `<tr>
+        <td>${disc}</td><td>${nom}</td><td>${prenom}</td><td>${lic}</td><td>${club}</td>
+        <td>${cat}</td><td>${arme}</td><td>${sexe}</td><td>${pts}</td><td>${rang}</td>
+      </tr>`;
+    }).join('');
+    const empty = rows.length===0 ? `<div class="muted">Aucun résultat dans cette discipline.</div>` : "";
+    return empty || `<table class="popup-table"><thead>${head}</thead><tbody>${body}</tbody></table>`;
+  }
+
+  const first = discs[0] || '';
+  const htmlTabs = `${styles}<div class="tabs">${tabs}</div><div id="tabZone" class="tab-content"></div>`;
+  const bodyEl = document.getElementById('modalBody');
+  bodyEl.innerHTML = htmlTabs;
+  function activate(d){
+    // button states
+    bodyEl.querySelectorAll('.tab-btn').forEach(btn => btn.classList.toggle('active', btn.getAttribute('data-disc')===d));
+    // content
+    bodyEl.querySelector('#tabZone').innerHTML = tableForDisc(d);
+  }
+  // listeners
+  bodyEl.querySelectorAll('.tab-btn').forEach(btn => {
+    btn.addEventListener('click', e => activate(btn.getAttribute('data-disc')));
+  });
+  activate(preferredDisc && discs.includes(preferredDisc) ? preferredDisc : first);
+}
+
 </script>
 <style id="rp-modal-styles">
   .rp-modal{position:fixed;inset:0;display:none;align-items:center;justify-content:center;background:rgba(0,0,0,.25);z-index:9999}
@@ -371,6 +438,38 @@ tr.hover-sync, #inscriptions-panel .item.hover-sync{ outline: 2px solid #94a3b8;
     header .hint { display:none !important; visibility:hidden !important; height:0 !important; padding:0 !important; margin:0 !important; }
   </style>
 
+
+<script>
+function labelifyDisc(x){
+  if(!x) return '';
+  var raw = String(x).trim();
+  var up = raw.toUpperCase();
+  // Strip 'NATIONAL_' prefix if present
+  if(/^NATIONAL_/.test(up)) up = up.replace(/^NATIONAL_/, '');
+  // Collapse 'TAE I' or 'TAE N' variants to 'T'
+  if(/^TAE\s+[IN]$/.test(up)) up = 'T';
+  // Map short codes
+  var map = { 'T':'TAE','S':'TIR À 18M','3':'3D','C':'CAMPAGNE','N':'NATURE','H':'PARA-TIR EXT.','I':'PARA-TIR 18M' };
+  if(map[up]) return map[up];
+  // If it still looks like 'X' return as-is
+  return raw;
+}
+</script>
+
+
+<style id="custom-export-style">
+  /* Bigger title */
+  h1 { font-size: 2rem; line-height: 1.15; }
+  /* Hide dataset hint line */
+  #dataset-hint { display: none !important; }
+  /* Green Export button */
+  #btnExportVisible {
+    background: #16a34a !important; /* green-600 */
+    color: #fff !important;
+  }
+  #btnExportVisible:hover { background: #15803d !important; } /* green-700 */
+</style>
+
 </head>
 <body>
 <div class="quota-banner" hidden="" id="quota-banner"></div>
@@ -509,6 +608,18 @@ tr.hover-sync, #inscriptions-panel .item.hover-sync{ outline: 2px solid #94a3b8;
       filters: { categorie:'', sexe:'', arme:'', departement:'', distance:'', blason:'', catClass:'', catTir:'', search:'' }
     };
 
+// Libellés lisibles pour codes de discipline
+const DISC_LABELS = {
+  'National_C': 'Campagne',
+  'National_N': 'Nature',
+  'National_T': 'TAE',
+  'National_S': 'Tir à 18m',
+  'National_3': '3D',
+  'National_H': 'Para-tir à l\'arc en extérieur',
+  'National_I': 'Para-tir à l\'arc à 18m'
+};
+
+
     // ========= FICHIERS =========
     const filesMap = { '3D':'3D.csv','Campagne':'Campagne.csv','Tir 18m':'Tir 18m.csv','Nature':'Nature.csv','Para ext':'para ext.csv','Para 18m':'Para salle 18m.csv','TAE I':'TAE.csv','TAE N':'TAE.csv' };
     const TEAM_FILE = 'equipes.csv';
@@ -533,9 +644,31 @@ tr.hover-sync, #inscriptions-panel .item.hover-sync{ outline: 2px solid #94a3b8;
 
     // ========= INDIVIDUEL =========
     async function ensureDisciplineLoadedIndiv(){ const disc=state.disciplineIndiv; if(!disc) return []; if(state.rawByDiscipline.has(disc)) return state.rawByDiscipline.get(disc); const file=filesMap[disc]; if(!file) return []; const raw=await loadCSV(file); let filtered=raw; if(disc==='TAE I') filtered=raw.filter(r=>(r.TYPE||'').trim().toUpperCase()==='I'); if(disc==='TAE N') filtered=raw.filter(r=>(r.TYPE||'').trim().toUpperCase()==='N'); state.rawByDiscipline.set(disc,filtered); return filtered; }
+
+// ====== NEW: load all individual disciplines for multi-discipline quick search ======
+async function ensureAllIndivLoaded(){
+  const sel = document.getElementById('discipline');
+  const options = Array.from(sel ? sel.options : []).map(o=>o.value).filter(v=>v && v!=='Tous' && v!=='Toutes');
+  const prev = state.disciplineIndiv;
+  let union = [];
+  for(const disc of options){
+    state.disciplineIndiv = disc;
+    const part = await ensureDisciplineLoadedIndiv();
+    const withDisc = part.map(r => {
+      if (r && (r.DISCIPLINE || r.DISC || r.discipline)) return r;
+      const copy = Object.assign({}, r);
+      copy.DISCIPLINE = (DISC_LABELS[disc]||disc);
+      return copy;
+    });
+    union = union.concat(withDisc);
+  }
+  state.disciplineIndiv = prev;
+  return union;
+}
+
     function populateDependentFiltersIndiv(data){ const cat=document.getElementById('categorie'); const arme=document.getElementById('arme'); const distance=document.getElementById('distance'); const blason=document.getElementById('blason'); const catClass=document.getElementById('catClass'); const catTir=document.getElementById('catTir'); const catKeys=['CAT','CATEGORIE','CATEGORIE_CLUB','CATEGORIE_AGE','CATEGORIE_TIR']; const cats=uniqueSorted(data.map(r=> catKeys.map(k=>r[k]).find(Boolean))); fillSelect(cat, ['Toutes', ...cats], true, state.filters.categorie); const armes=uniqueSorted(data.map(r=> r.ARME||r.AR)); fillSelect(arme, ['Toutes', ...armes], true, state.filters.arme); const dists=uniqueSorted(data.map(r=> r.distance||r.DISTANCE)); const blasons=uniqueSorted(data.map(r=> r.blason||r.BLASON)); fillSelect(distance, ['Toutes', ...dists], true, state.filters.distance); fillSelect(blason, ['Tous', ...blasons], true, state.filters.blason); const cc=uniqueSorted(data.map(r=> r.CAT_CLASS)); const ct=uniqueSorted(data.map(r=> r.CAT_TIR)); fillSelect(catClass, ['Toutes', ...cc], true, state.filters.catClass); fillSelect(catTir, ['Toutes', ...ct], true, state.filters.catTir); }
-    function buildDisplayRowIndiv(r){ const club=[r.NOM_STRUCTURE,r.NOM_ABREGE].filter(Boolean).join(' - '); return { RANG:r.Rang_ligue||r.RANG||r.Rang||'', NO_LICENCE:r.NO_LICENCE||'', NOM_PRENOM:[r.NOM_PERSONNE,r.PRENOM_PERSONNE].filter(Boolean).join(' '), DEPARTEMENT:getDeptFromCodeStructure(r.CODE_STRUCTURE), CLUB:club, SCORE1:r.SCORE1||'', SCORE2:r.SCORE2||'', SCORE3:r.SCORE3||'', MOY_SCORE:r.MOY_SCORE||r.MOYENNE||'', distance:r.distance||r.DISTANCE||'', blason:r.blason||r.BLASON||'', CAT_TIR:r.CAT_TIR||'', CAT_CLASS:r.CAT_CLASS||'' }; }
-    function headersForIndiv(){ const disc=state.disciplineIndiv; const base=[{key:'RANG',label:'Rang'},{key:'NO_LICENCE',label:'N° licence'},{key:'NOM_PRENOM',label:'Nom prénom'},{key:'CLUB',label:'Club / Cie'},{key:'SCORE1',label:'Score 1'},{key:'SCORE2',label:'Score 2'},{key:'SCORE3',label:'Score 3'},{key:'MOY_SCORE',label:'Moyenne'}]; if(state.filters.departement){ base.splice(3,0,{key:'DEPARTEMENT',label:'Département'},{key:'RANG_DEP',label:'Rang dép.'}); } if(['TAE I','TAE N','Para ext'].includes(disc)){ base.push({key:'distance',label:'Distance'},{key:'blason',label:'Blason'}); } if(['Para ext','Para 18m'].includes(disc)){ base.push({key:'CAT_TIR',label:'Catégorie de tir'},{key:'CAT_CLASS',label:'Catégorie de classement'}); } return base; }
+    function buildDisplayRowIndiv(r){  const club=[r.NOM_STRUCTURE,r.NOM_ABREGE].filter(Boolean).join(' - '); return { DISCIPLINE:(DISC_LABELS[(r.DISCIPLINE||r.DISC||r.discipline||'')] || (r.DISCIPLINE||r.DISC||r.discipline||'')), RANG:r.Rang_ligue||r.RANG||r.Rang||'', NO_LICENCE:r.NO_LICENCE||'', NOM_PRENOM:[r.NOM_PERSONNE,r.PRENOM_PERSONNE].filter(Boolean).join(' '), DEPARTEMENT:getDeptFromCodeStructure(r.CODE_STRUCTURE), CLUB:club, SCORE1:r.SCORE1||'', SCORE2:r.SCORE2||'', SCORE3:r.SCORE3||'', MOY_SCORE:r.MOY_SCORE||r.MOYENNE||'', distance:r.distance||r.DISTANCE||'', blason:r.blason||r.BLASON||'', CAT_TIR:r.CAT_TIR||'', CAT_CLASS:r.CAT_CLASS||'' }; }
+    function headersForIndiv(){ const disc=state.disciplineIndiv; const base=[{key:'RANG',label:'Rang'},{key:'NO_LICENCE',label:'N° licence'},{key:'NOM_PRENOM',label:'Nom prénom'},{key:'CLUB',label:'Club / Cie'},{key:'SCORE1',label:'Score 1'},{key:'SCORE2',label:'Score 2'},{key:'SCORE3',label:'Score 3'},{key:'MOY_SCORE',label:'Moyenne'}]; if((!state.disciplineIndiv||state.disciplineIndiv==='') && state.filters && state.filters.search){ base.unshift({key:'DISCIPLINE',label:'Discipline'}); }  if(state.filters.departement){ base.splice(3,0,{key:'DEPARTEMENT',label:'Département'},{key:'RANG_DEP',label:'Rang dép.'}); } if(['TAE I','TAE N','Para ext'].includes(disc)){ base.push({key:'distance',label:'Distance'},{key:'blason',label:'Blason'}); } if(['Para ext','Para 18m'].includes(disc)){ base.push({key:'CAT_TIR',label:'Catégorie de tir'},{key:'CAT_CLASS',label:'Catégorie de classement'}); } return base; }
     function applyFiltersIndiv(data){ const f=state.filters; const disc=state.disciplineIndiv; return data.filter(r=>{ if(f.categorie){ const v=(r.CAT||r.CATEGORIE||r.CATEGORIE_CLUB||r.CATEGORIE_AGE||r.CATEGORIE_TIR||'').toString(); if(v!==f.categorie) return false; } if(f.sexe){ const sex=(r.SEXE||r.GENRE||'').toString().toUpperCase(); if(sex && sex!==f.sexe.toUpperCase()) return false; if(!sex){ const c=(r.CAT||r.CATEGORIE||'').toString().toUpperCase(); if(f.sexe==='H' && c.endsWith('F')) return false; if(f.sexe==='F' && c.endsWith('H')) return false; } } if(f.arme){ const a=(r.ARME||r.AR||'').toString(); if(a!==f.arme) return false; } if(f.departement){ const dep=getDeptFromCodeStructure(r.CODE_STRUCTURE); if(dep!==f.departement) return false; } if(['TAE I','TAE N','Para ext'].includes(disc)){ if(f.distance && String(r.distance||r.DISTANCE||'')!==f.distance) return false; if(f.blason && String(r.blason||r.BLASON||'')!==f.blason) return false; } if(['Para 18m','Para ext'].includes(disc)){ if(f.catClass && String(r.CAT_CLASS||'')!==f.catClass) return false; if(f.catTir && String(r.CAT_TIR||'')!==f.catTir) return false; } if(f.search){ const q=f.search.toLowerCase(); const nom=((r.NOM_PERSONNE||'')+' '+(r.PRENOM_PERSONNE||'')).toLowerCase(); const club=((r.NOM_STRUCTURE||'')+' '+(r.NOM_ABREGE||'')).toLowerCase(); if(!nom.includes(q) && !club.includes(q)) return false; } return true; }); }
     function renderTableIndiv(rows){ const thead=document.getElementById('thead-row'); const tbody=document.getElementById('tbody'); thead.innerHTML=''; tbody.innerHTML=''; const headers=headersForIndiv(); headers.forEach(h=>{ const th=document.createElement('th'); th.textContent=h.label; thead.appendChild(th); }); let displayed=rows.slice(); const depFilter=state.filters.departement||''; const depIdx=new Map(); if(depFilter){ const ligueRank = r=> (parseInt(r.Rang_ligue||r.RANG||r.Rang||'999999')||999999); displayed.sort((a,b)=> ligueRank(a)-ligueRank(b) || (toNum(b.MOY_SCORE)-toNum(a.MOY_SCORE)) ); displayed.forEach((r,i)=> depIdx.set(r,i+1)); } displayed.forEach(r=>{ const disp=buildDisplayRowIndiv(r); if(depFilter) disp.RANG_DEP=depIdx.get(r)||''; const tr=document.createElement('tr'); headers.forEach(h=>{ const td=document.createElement('td'); td.textContent = (h.key==='RANG_DEP') ? (disp.RANG_DEP||'') : (disp[h.key]??''); tr.appendChild(td); }); tbody.appendChild(tr); }); document.getElementById('totalChip').textContent = displayed.length + ' ligne' + (displayed.length>1?'s':''); }
 
@@ -593,9 +726,27 @@ tr.hover-sync, #inscriptions-panel .item.hover-sync{ outline: 2px solid #94a3b8;
     function applyFiltersTeam_Normal(data){ const f=state.filters; const disc=(state.disciplineTeam||'').toUpperCase(); return data.filter(r=>{ const code=getTeamDisciplineCode(r); if(code==='S') return false; if(disc && code!==disc) return false; if(f.categorie){ const v=(r.CATEGORIE_CLASSEMENT||r.CAT_CLASS||'').toString(); if(v!==f.categorie) return false; } if(f.departement){ const dep=getDeptFromCodeStructure(r.CODE_STRUCTURE); if(dep!==f.departement) return false; } if(f.search){ const q=f.search.toLowerCase(); const eq=(r.NOM_EQ||r.NOM_EQUIPE||r.EQUIPE||'').toLowerCase(); const club=((r.NOM_STRUCTURE||'')+' '+(r.NOM_ABREGE||'')).toLowerCase(); if(!eq.includes(q) && !club.includes(q)) return false; } return true; }); }
 
     // ========= REFRESH =========
-    async function refresh(){ updateChips(); const hint=document.getElementById('dataset-hint'); const teamNote=document.getElementById('team-note'); const sexeField=document.getElementById('sexe-field'); const armeField=document.getElementById('arme-field'); if(state.viewMode==='team'){ teamNote.classList.remove('hidden'); document.getElementById('tae-section').classList.add('hidden'); document.getElementById('para-section').classList.add('hidden'); DISC_SELECT.innerHTML='<option value="">— Choisir —</option>'; await ensureTeamLoaded(); populateDisciplineForTeam(); DISC_SELECT.value=state.disciplineTeam||''; populateTeamCategories(); document.getElementById('categorie').value=state.filters.categorie||''; const disc=(state.disciplineTeam||'').toUpperCase(); const is18=(disc==='18M_AUTO'); // masquer ces filtres en équipe
-        sexeField.classList.add('hidden'); armeField.classList.add('hidden'); if(!disc){ hint.textContent='Sélectionnez une discipline (Équipe).'; document.getElementById('thead-row').innerHTML=''; document.getElementById('tbody').innerHTML=''; document.getElementById('totalChip').textContent='0 lignes'; return; } if(is18){ renderTableTeam_18mAuto(); return; } const isTAEIAutoCat = (disc==='T') && TEAMTAEI_GROUPS.includes(state.filters.categorie||''); if(isTAEIAutoCat){ renderTableTeam_TAEIAuto(); return; } const filtered=applyFiltersTeam_Normal(state.teamRaw||[]); hint.textContent=TEAM_FILE+' chargé ('+(state.teamRaw||[]).length+' lignes).'; renderTableTeam_Normal(filtered); return; } // INDIV
-      teamNote.classList.add('hidden'); DISC_SELECT.innerHTML=INDIV_OPTIONS_HTML; DISC_SELECT.value=state.disciplineIndiv||''; showHideSectionsIndiv(); if(!state.disciplineIndiv){ hint.textContent='Aucun fichier chargé.'; document.getElementById('thead-row').innerHTML=''; document.getElementById('tbody').innerHTML=''; document.getElementById('totalChip').textContent='0 lignes'; return; } const data=await ensureDisciplineLoadedIndiv(); hint.textContent=filesMap[state.disciplineIndiv]+' chargé ('+data.length+' lignes).'; populateDependentFiltersIndiv(data); document.getElementById('categorie').value=state.filters.categorie||''; document.getElementById('arme').value=state.filters.arme||''; document.getElementById('distance').value=state.filters.distance||''; document.getElementById('blason').value=state.filters.blason||''; document.getElementById('catClass').value=state.filters.catClass||''; document.getElementById('catTir').value=state.filters.catTir||''; const filteredInd=applyFiltersIndiv(data); renderTableIndiv(filteredInd); }
+    async function refresh(){ updateChips(); const hint=document.getElementById('dataset-hint'); const teamNote=document.getElementById('team-note'); const sexeField=document.getElementById('sexe-field'); const armeField=document.getElementById('arme-field'); sexeField && sexeField.classList && sexeField.classList.toggle('hidden', state.viewMode==='team'); armeField && armeField.classList && armeField.classList.toggle('hidden', state.viewMode==='team'); if(state.viewMode==='team'){ teamNote.classList.remove('hidden'); document.getElementById('tae-section').classList.add('hidden'); document.getElementById('para-section').classList.add('hidden'); DISC_SELECT.innerHTML='<option value="">— Choisir —</option>'; await ensureTeamLoaded(); populateDisciplineForTeam(); DISC_SELECT.value=state.disciplineTeam||''; populateTeamCategories(); document.getElementById('categorie').value=state.filters.categorie||''; const disc=(state.disciplineTeam||'').toUpperCase(); const is18=(disc==='18M_AUTO'); // masquer ces filtres en équipe
+        sexeField && sexeField.classList && sexeField.classList.toggle('hidden', true);
+        armeField && armeField.classList && armeField.classList.toggle('hidden', true); if(!disc){ hint.textContent='Sélectionnez une discipline (Équipe).'; document.getElementById('thead-row').innerHTML=''; document.getElementById('tbody').innerHTML=''; document.getElementById('totalChip').textContent='0 lignes'; return; } if(is18){ renderTableTeam_18mAuto(); return; } const isTAEIAutoCat = (disc==='T') && TEAMTAEI_GROUPS.includes(state.filters.categorie||''); if(isTAEIAutoCat){ renderTableTeam_TAEIAuto(); return; } const filtered=applyFiltersTeam_Normal(state.teamRaw||[]); hint.textContent=TEAM_FILE+' chargé ('+(state.teamRaw||[]).length+' lignes).'; renderTableTeam_Normal(filtered); return; } // INDIV
+      teamNote.classList.add('hidden'); DISC_SELECT.innerHTML=INDIV_OPTIONS_HTML; DISC_SELECT.value=state.disciplineIndiv||''; showHideSectionsIndiv(); if(!state.disciplineIndiv){
+        const q = (state.filters && state.filters.search || '').trim();
+        if(!q){
+          hint.textContent='Saisissez une recherche ou choisissez une discipline.';
+          document.getElementById('table').innerHTML='';
+          document.getElementById('totalChip').textContent='0 lignes';
+          return;
+        }
+        // Recherche multi-discipline (aucune discipline sélectionnée)
+        const all = await ensureAllIndivLoaded();
+        const prevDisc = state.disciplineIndiv;
+        state.disciplineIndiv = '';
+        const filteredInd = applyFiltersIndiv(all);
+        state.disciplineIndiv = prevDisc;
+        hint.textContent='Recherche multi-discipline ('+filteredInd.length+' lignes).';
+        renderTableIndiv(filteredInd);
+        return;
+      } const data=await ensureDisciplineLoadedIndiv(); hint.textContent=filesMap[state.disciplineIndiv]+' chargé ('+data.length+' lignes).'; populateDependentFiltersIndiv(data); document.getElementById('categorie').value=state.filters.categorie||''; document.getElementById('arme').value=state.filters.arme||''; document.getElementById('distance').value=state.filters.distance||''; document.getElementById('blason').value=state.filters.blason||''; document.getElementById('catClass').value=state.filters.catClass||''; document.getElementById('catTir').value=state.filters.catTir||''; const filteredInd=applyFiltersIndiv(data); renderTableIndiv(filteredInd); }
 
     // ========= EXPORT =========
     function exportCurrentCSV(){ if(state.viewMode==='team'){ const disc=(state.disciplineTeam||'').toUpperCase(); if(!disc){ alert('Choisissez une discipline (Équipe).'); return; } if(disc==='18M_AUTO'){ const group = state.filters.categorie || TEAM18_GROUPS[0]; loadCSV(TEAM18_FILE).then(all=>{ const teams=buildTeams18(all, group); const depFilter=state.filters.departement||''; const filtered = depFilter? teams.filter(t=> t.DEPARTEMENT===depFilter) : teams; const headers=['Rang']; if(depFilter){ headers.push('Département','Rang dép.'); } headers.push('Équipe','3 scores','Total équipe'); const csvRows = filtered.map((t,i)=>{ const rankDep = depFilter? (i+1) : ''; const row = depFilter? [t.RANG, t.DEPARTEMENT, rankDep, t.CLUB, t.SCORES_INT.join(' / '), Math.round(t.TOTAL_EQ)] : [t.RANG, t.CLUB, t.SCORES_INT.join(' / '), Math.round(t.TOTAL_EQ)]; return row.map(v=> '"'+String(v).replaceAll('"','""')+'"').join(';'); }); const csv=[headers.join(';')].concat(csvRows).join('\n'); const blob=new Blob([csv],{type:'text/csv;charset=utf-8'}); const url=URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download='equipes_18m_'+group.replaceAll(' ','_')+'.csv'; document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url); }); return; } if(disc==='T' && TEAMTAEI_GROUPS.includes(state.filters.categorie||'')){ const group = state.filters.categorie || TEAMTAEI_GROUPS[0]; loadCSV(filesMap['TAE I']).then(all=>{ const teams=buildTeamsTAEI(all, group); const depFilter=state.filters.departement||''; const filtered = depFilter? teams.filter(t=> t.DEPARTEMENT===depFilter) : teams; const headers=['Rang']; if(depFilter){ headers.push('Département','Rang dép.'); } headers.push('Équipe','3 scores','Total équipe'); const csvRows = filtered.map((t,i)=>{ const rankDep = depFilter? (i+1) : ''; const row = depFilter? [t.RANG, t.DEPARTEMENT, rankDep, t.CLUB, t.SCORES_INT.join(' / '), Math.round(t.TOTAL_EQ)] : [t.RANG, t.CLUB, t.SCORES_INT.join(' / '), Math.round(t.TOTAL_EQ)]; return row.map(v=> '"'+String(v).replaceAll('"','""')+'"').join(';'); }); const csv=[headers.join(';')].concat(csvRows).join('\n'); const blob=new Blob([csv],{type:'text/csv;charset=utf-8'}); const url=URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download='equipes_TAEI_'+group.replaceAll(' ','_')+'.csv'; document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url); }); return; } // EXPORT NORMAL
@@ -996,9 +1147,43 @@ var rowDiscCode = firstAlpha(rowDiscToken);
       }
       getEl("rp-modal-title").textContent = "Résultats — " + (nom || "Archer");
       sub.textContent = discCode ? ("Discipline : " + (subtitle || "")) : (subtitle || "");
-      container.innerHTML = renderTable(filtered);
-      openModal();
-    });
+      
+// Construire un sélecteur de discipline
+var licStr = String(licence||"").trim();
+var allRows = all.filter(function(row){ return licenceFromRow(row) === licStr; });
+var discs = Array.from(new Set(allRows.map(function(r){ return labelifyDisc(rowDiscTokenFromRow(r)); }))).filter(Boolean).sort();
+
+// UI: select + zone table
+container.innerHTML = '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;gap:8px">'
+  + '<div style="font-size:12px;color:#666">Discipline</div>'
+  + '<select id="rp-disc" style="flex:0 0 220px;padding:6px;border:1px solid #ddd;border-radius:6px">'
+  + '<option value="">Toutes — Choisir —</option>'
+  + discs.map(function(d){ return '<option value="'+d+'">'+d+'</option>'; }).join('')
+  + '</select>'
+  + '</div>'
+  + '<div id="rp-table-zone"></div>';
+
+// Rendu conditionnel
+function renderForDisc(d){
+  var rows = !d ? allRows : allRows.filter(function(r){ return labelifyDisc(rowDiscTokenFromRow(r)) === d; });
+  document.getElementById('rp-table-zone').innerHTML = renderTable(rows);
+}
+
+// Pré-sélectionner la discipline courante si possible
+var currentLabel = (function(){
+  var sel = getSel && getSel();
+  var discTxt = sel && sel.disciplineText ? sel.disciplineText : '';
+  return labelifyDisc(discTxt);
+})();
+var selectEl = document.getElementById('rp-disc');
+if(currentLabel && discs.indexOf(currentLabel) !== -1){
+  selectEl.value = currentLabel;
+}
+selectEl.addEventListener('change', function(){ renderForDisc(this.value || ''); });
+
+renderForDisc(selectEl.value || '');
+openModal();
+});
   }
 
   document.addEventListener("DOMContentLoaded", function(){
@@ -1914,246 +2099,190 @@ document.addEventListener('DOMContentLoaded', function(){
 </script>
 
 
-<!-- Injected by ChatGPT: SIMPLE QI for Team 18m (Inscr. last + banner) -->
-
-<script id="team18-simple-qi">
+<script>
 (function(){
-  const QUOTAS_FILE = "quotas%20cpe%20ligue.csv";
-  const INSCR_FILE  = "coupe%20ligue%20salle.csv";
-
-  function norm(s){
-    return (s||'').toString()
-      .toLowerCase()
-      .normalize('NFD').replace(/[\u0300-\u036f]/g,'')
-      .replace(/\s+/g,' ')
-      .trim();
-  }
-  function canon(s){
-    return norm(s).replace(/[^a-z0-9]/g,'');
-  }
-  function cleanTeamLabel(label){
-    let s = (label||'').trim();
-    const wraps = [['(',')'],['[',']'],['{','}'],['«','»'],['\"','\"'],["'","'"]];
-    wraps.forEach(w=>{ if (s.startsWith(w[0]) && s.endsWith(w[1])) s = s.slice(1,-1).trim(); });
-    s = s.replace(/^[^\p{L}\p{N}]+/u,'').replace(/[^\p{L}\p{N}]+$/u,'');
-    return s.trim();
-  }
-
-  function parseCSV(text){
-    const lines = text.split(/\r?\n/).filter(l=>l.trim().length>0);
-    if (!lines.length) return [];
-    const sep = (lines[0].includes(';')) ? ';' : ',';
-    const headers = lines[0].split(sep).map(h=>h.trim());
-    return lines.slice(1).map(line=>{
-      const parts = line.split(sep);
-      const obj = {};
-      headers.forEach((h, i)=> obj[h] = (parts[i]||'').trim());
-      return obj;
-    });
-  }
-
-  let state = { quotasByCat:null, inscrByCat:null, loaded:false };
-
-  async function ensureData(){
-    if (state.loaded) return;
+  function exportVisibleCSV(){
     try{
-      const [qTxt, iTxt] = await Promise.all([
-        fetch(QUOTAS_FILE).then(r=>r.ok?r.text():''),
-        fetch(INSCR_FILE).then(r=>r.ok?r.text():'')
-      ]);
-      const quotasByCat = {};
-      const inscrByCat = {};
-
-      if (qTxt){
-        const rows = parseCSV(qTxt);
-        rows.forEach(row=>{
-          const rawCat = row['équipes'] || row['Equipes'] || row['equipe'] || row['Equipe'] || row['categorie'] || '';
-          const key = canon(rawCat);
-          const quota = parseInt(String(row['Quotas']||row['quota']||'').replace(/\D+/g,''),10);
-          if (key) quotasByCat[key] = Number.isFinite(quota) ? quota : null;
-        });
-      }
-      if (iTxt){
-        const rows = parseCSV(iTxt);
-        if (rows.length){
-          const headers = Object.keys(rows[0]);
-          const teamCol = headers[0];
-          headers.slice(1).forEach(h=>{ inscrByCat[canon(h)] = new Set(); });
-          rows.forEach(row=>{
-            const team = norm(row[teamCol]);
-            headers.slice(1).forEach(h=>{
-              const val = norm(row[h]);
-              if (['vrai','true','oui','1'].includes(val)){
-                inscrByCat[canon(h)].add(team);
-              }
-            });
-          });
-        }
-      }
-      state.quotasByCat = quotasByCat;
-      state.inscrByCat = inscrByCat;
-      state.loaded = true;
-    }catch(e){
-      state.loaded = true;
-      state.quotasByCat = state.quotasByCat || {};
-      state.inscrByCat = state.inscrByCat || {};
-    }
-  }
-
-  function getContext(){
-    const vm = document.getElementById('viewMode');
-    const d  = document.getElementById('discipline');
-    const c  = document.getElementById('categorie');
-    const mode = vm ? (vm.value || (vm.options[vm.selectedIndex] && vm.options[vm.selectedIndex].text) || '') : '';
-    const disc = d ? (d.value || (d.options[d.selectedIndex] && d.options[d.selectedIndex].text) || '') : '';
-    const cat  = c ? ((c.options[c.selectedIndex] && c.options[c.selectedIndex].text) || '') : '';
-    const isTeam = ['team','equipe','équipe'].some(k => norm(mode).includes(k));
-    const is18m = norm(disc).includes('18m');
-    return {isTeam, is18m, catKey: canon(cat)};
-  }
-
-  function ensureStyles(){
-    if (document.getElementById('team18-simple-qi-styles')) return;
-    const s = document.createElement('style');
-    s.id = 'team18-simple-qi-styles';
-    s.textContent = `
-      tr.team-quota-in td { background: #e8f7ee !important; }   /* vert clair */
-      tr.team-quota-over td { background: #fff4e5 !important; } /* orange clair */
-    `;
-    document.head.appendChild(s);
-  }
-
-  function applySimpleQI(){
-    ensureStyles();
-    const ctx = getContext();
-    if (!ctx.isTeam || !ctx.is18m) return;
-
-    const theadRow = document.getElementById('thead-row');
-    const tbody = document.getElementById('tbody');
-    if (!theadRow || !tbody) return;
-
-    const quota = (state.quotasByCat && Object.prototype.hasOwnProperty.call(state.quotasByCat, ctx.catKey))
-      ? (state.quotasByCat[ctx.catKey] || 0)
-      : null;
-    const inscritSet = (state.inscrByCat && state.inscrByCat[ctx.catKey]) ? state.inscrByCat[ctx.catKey] : null;
-
-    // Header: add 'Inscr.' LAST if we have inscription data
-    if (inscritSet){
-      const labels = Array.from(theadRow.children).map(th=> (th.textContent||'').trim().toLowerCase());
-      if (!(labels.length===7 && labels[labels.length-1]==='inscr.')){
-        theadRow.innerHTML = [
-          '<th>Rang</th>',
-          '<th>Équipes</th>',
-          '<th>Score 1</th>',
-          '<th>Score 2</th>',
-          '<th>Score 3</th>',
-          '<th>Total équipe</th>',
-          '<th>Inscr.</th>'
-        ].join('');
-      }
-    }
-
-    // Tidy & color rows + set "Inscription" marker
-    let inscrCount = 0;
-    Array.from(tbody.querySelectorAll('tr')).forEach(tr=>{
-      const tds = tr.children;
-      if (!tds || tds.length < 4) return;
-
-      // Clean team label in column 2
-      if (tds[1]){
-        const raw = tds[1].textContent || '';
-        const cleaned = cleanTeamLabel(raw);
-        if (cleaned && cleaned !== raw) tds[1].textContent = cleaned;
-      }
-
-      // Quota coloring based on rank (col 1)
-      if (quota!=null && quota>0){
-        const rankVal = parseInt((tds[0].textContent||'').replace(/\D+/g,''),10);
-        tr.classList.remove('team-quota-in','team-quota-over');
-        if (Number.isFinite(rankVal)){
-          if (rankVal <= quota) tr.classList.add('team-quota-in');
-          else tr.classList.add('team-quota-over');
-        }
+      // Try the main table (#thead-row / #tbody) first
+      var thead = document.getElementById('thead-row');
+      var tbody = document.getElementById('tbody');
+      var tbl;
+      if (thead && tbody) {
+        tbl = { thead: thead.closest('thead') || thead.parentElement, tbody: tbody };
       } else {
-        tr.classList.remove('team-quota-in','team-quota-over');
+        // Fallback: find any visible table
+        var table = document.querySelector('#table table, #tableau table, table');
+        if (!table) return alert('Aucun tableau à exporter.');
+        tbl = { thead: table.querySelector('thead'), tbody: table.querySelector('tbody') };
       }
+      if (!tbl.thead || !tbl.tbody) return alert('Tableau non détecté.');
+      var rows = tbl.tbody.querySelectorAll('tr');
+      if (!rows || !rows.length) return alert('Aucune ligne visible à exporter.');
 
-      // Inscription last column
-      if (inscritSet){
-        const teamKey = norm(tds[1].textContent||'');
-        const yes = inscritSet.has(teamKey);
-        if (tds.length === 6){
-          const td = document.createElement('td');
-          td.textContent = yes ? 'inscription' : '';
-          td.className = 'text-center';
-          tr.appendChild(td);
-        } else if (tds.length >= 7){
-          const last = tds[tds.length-1];
-          last.textContent = yes ? 'inscription' : '';
-          last.className = 'text-center';
-        }
-        if (yes) inscrCount++;
-      }
-    });
+      // Headers
+      var headers = Array.from(tbl.thead.querySelectorAll('th')).map(function(th){ 
+        return (th.textContent || '').trim(); 
+      });
+      var lines = [ headers.join(';') ];
 
-    // Banner
-    const colSpan = inscritSet ? 7 : 6;
-    const prior = theadRow.parentElement.querySelector('.quota-banner-row');
-    if (prior) prior.remove();
-    let banner = '';
-    if (quota!=null && inscritSet){
-      const reste = Math.max(0, quota - inscrCount);
-      banner = `Quota : ${quota} • Inscrits : ${inscrCount} • Reste : ${reste}`;
-    } else if (quota!=null){
-      banner = `Quota : ${quota}`;
-    } else if (inscritSet){
-      banner = `Inscrits : ${inscrCount}`;
-    }
-    if (banner){
-      const tr = document.createElement('tr');
-      tr.className = 'quota-banner-row';
-      const th = document.createElement('th');
-      th.colSpan = colSpan;
-      th.textContent = banner;
-      th.style.background = '#eef5ff';
-      th.style.color = '#0b5394';
-      th.style.fontWeight = '600';
-      th.style.textAlign = 'left';
-      th.style.padding = '8px 12px';
-      tr.appendChild(th);
-      theadRow.parentElement.insertBefore(tr, theadRow);
+      // Rows
+      Array.from(rows).forEach(function(tr){
+        var cells = Array.from(tr.querySelectorAll('td')).map(function(td){
+          var v = (td.textContent || '').replace(/\s+/g,' ').trim();
+          return '"' + v.replace(/"/g,'""') + '"';
+        });
+        if (cells.length) lines.push(cells.join(';'));
+      });
+
+      if (lines.length <= 1) return alert('Aucune donnée à exporter.');
+
+      var csv = lines.join('\n');
+      var blob = new Blob([csv], {type:'text/csv;charset=utf-8'});
+      var url = URL.createObjectURL(blob);
+      var a = document.createElement('a');
+      a.href = url;
+
+      // Build filename
+      var q = (window.state && state.filters && state.filters.search || '').trim();
+      var stamp = new Date().toISOString().slice(0,19).replace(/[:T]/g,'-');
+      a.download = 'export_visible' + (q?('_search_'+q.replace(/\s+/g,'_')):'') + '_' + stamp + '.csv';
+      document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
+    }catch(e){
+      console.warn('Export visible failed:', e);
+      alert('Export impossible : ' + (e && e.message ? e.message : e));
     }
   }
 
-  async function run(){
-    await ensureData();
-    applySimpleQI();
+  function addExportButton(){
+    // 1) Hide/remove any existing "Exporter le filtre" button
+    var oldBtn = Array.from(document.querySelectorAll('button, a'))
+      .find(function(el){ return /exporter\s+le\s+filtre/i.test((el.textContent||'').trim()); });
+    if (oldBtn) { oldBtn.style.display = 'none'; oldBtn.disabled = true; }
+
+    // 2) Insert our new "Export" button next to where the old one lived, or under the hint line
+    var host = oldBtn && oldBtn.parentElement;
+    if (!host) {
+      // try to anchor near the "Recherche multi-discipline" hint or total
+      host = document.getElementById('dataset-hint') && document.getElementById('dataset-hint').parentElement;
+    }
+    if (!host) host = document.body;
+
+    var btn = document.createElement('button');
+    btn.id = 'btnExportVisible';
+    btn.type = 'button';
+    btn.textContent = 'Export';
+    // simple styling, try to be close to existing UI
+    btn.style.padding = '8px 12px';
+    btn.style.border = 'none';
+    btn.style.borderRadius = '8px';
+    btn.style.background = '#0ea5e9';
+    btn.style.color = '#fff';
+    btn.style.cursor = 'pointer';
+    btn.style.marginLeft = '8px';
+    btn.addEventListener('click', exportVisibleCSV);
+    host.appendChild(btn);
   }
 
-  document.addEventListener('DOMContentLoaded', function(){
-    run();
-    setTimeout(run, 80);
-    setTimeout(run, 250);
-    ['viewMode','discipline','categorie'].forEach(id=>{
-      const el = document.getElementById(id);
-      if (el && !el.__qi_simple2){
-        el.addEventListener('change', run);
-        el.__qi_simple2 = true;
-      }
-    });
-    if (typeof window.renderTableTeam_18mAuto === 'function' && !window.renderTableTeam_18mAuto.__qi_simple2){
-      const orig = window.renderTableTeam_18mAuto;
-      window.renderTableTeam_18mAuto = function(){
-        const r = orig.apply(this, arguments);
-        try{ setTimeout(run, 30); }catch(_){}
-        return r;
-      };
-      window.renderTableTeam_18mAuto.__qi_simple2 = true;
-    }
-  });
+  if (document.readyState === 'loading'){
+    document.addEventListener('DOMContentLoaded', addExportButton);
+  } else {
+    addExportButton();
+  }
 })();
 </script>
 
+
+<script>
+// Compatibilité encodage CSV : UTF‑8 *ou* ISO‑8859‑1, sans casser le code existant
+(function(){
+  if (typeof window.loadCSV !== 'function') return;
+  const __origLoadCSV = window.loadCSV;
+
+  window.loadCSV = async function(fileName){
+    try{
+      const res = await fetch(encodeURI(fileName));
+      if(!res.ok) throw new Error('HTTP '+res.status);
+      const buf = await res.arrayBuffer();
+
+      // 1) Décodage texte : UTF-8 d'abord, sinon ISO-8859-1
+      let text = "";
+      try {
+        text = new TextDecoder('utf-8', {fatal:true}).decode(buf);
+      } catch(e) {
+        text = new TextDecoder('iso-8859-1').decode(buf);
+      }
+      // Si caractères de remplacement, comparer avec lecture ISO
+      if(/\uFFFD/.test(text)){
+        const iso = new TextDecoder('iso-8859-1').decode(buf);
+        const badU8 = (text.match(/\uFFFD/g)||[]).length;
+        const badIso = (iso.match(/\uFFFD/g)||[]).length;
+        if (badIso <= badU8) text = iso;
+      }
+
+      // 2) Parsing CSV : Papa.parse si dispo, sinon parseCSV, sinon fallback simple
+      if (window.Papa && Papa.parse){
+        const out = Papa.parse(text, {header:true, skipEmptyLines:true});
+        if (Array.isArray(out.data)) return out.data;
+      }
+      if (typeof window.parseCSV === 'function'){
+        const out = window.parseCSV(text);
+        if (out && out.rows) return out.rows;
+      }
+      // Fallback ultra-simple (auto ; ou ,)
+      const firstLine = (text.split(/\r?\n/,1)[0] || '');
+      const sep = ((firstLine.split(';').length-1) >= (firstLine.split(',').length-1)) ? ';' : ',';
+      const lines = text.trim().split(/\r?\n/);
+      if (!lines.length) return [];
+      const headers = (lines.shift() || '').split(sep).map(h => h.replace(/^"+|"+$/g,'').trim());
+      return lines.filter(l => l.trim().length).map(l => {
+        const cols = l.split(sep).map(c => c.replace(/^"+|"+$/g,'').trim());
+        const o = {}; headers.forEach((h,i)=> o[h] = (cols[i]||'')); return o;
+      });
+
+    } catch(err){
+      // En cas de souci, on retombe sur la version d'origine
+      try { return await __origLoadCSV(fileName); } catch(_) { return []; }
+    }
+  };
+})();
+</script>
+
+
+<script>
+// Réinitialiser : recharge proprement toute la page (réel reset de l'état)
+(function(){
+  function onHardReset(e){
+    try{
+      e.preventDefault(); e.stopPropagation();
+    }catch(_){}
+    // Nettoyer quelques états potentiels
+    try{ if (window.state) { state._savedIndiv = null; state._lastViewMode = null; } }catch(_){}
+    try{ if ('scrollRestoration' in history) history.scrollRestoration = 'manual'; }catch(_){}
+    // Reload dur (revient à l'état initial du HTML + rechargement CSV)
+    location.reload();
+    return false;
+  }
+  function wireHardReset(){
+    var btn =
+      document.getElementById('reset') ||
+      document.getElementById('resetBtn') ||
+      document.querySelector('[data-action="reset"]') ||
+      Array.from(document.querySelectorAll('button, a, input[type="button"], input[type="submit"]'))
+        .find(function(el){ return /réinitialiser/i.test((el.value||el.textContent||'').trim()); });
+    if(!btn || btn.__hardResetWired) return;
+    btn.addEventListener('click', onHardReset, true); // capture pour passer avant les handlers existants
+    btn.__hardResetWired = true;
+  }
+  if (document.readyState === 'loading'){
+    document.addEventListener('DOMContentLoaded', wireHardReset);
+  } else {
+    wireHardReset();
+  }
+  // Sécurité : si le DOM est reconstruit
+  var mo = new MutationObserver(function(){ wireHardReset(); });
+  try{ mo.observe(document.body, {childList:true, subtree:true}); }catch(_){}
+})();
+</script>
 
 </body>
 </html>
