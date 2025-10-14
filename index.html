@@ -297,7 +297,7 @@ tr.hover-sync, #inscriptions-panel .item.hover-sync{ outline: 2px solid #94a3b8;
 </style>
 <style id="sticky-thead-added">
 /* Sticky table header (safe addition) */
-.table-container thead th, thead th { position: sticky; top: 0; z-index: 1; background: var(--thead, #fff); }
+.table-container thead th, thead th { position: sticky; top: 0; z-index: 1; background: inherit; }
 </style>
 
   <!-- Injected by ChatGPT: brand colors from logo -->
@@ -581,18 +581,15 @@ td,th{vertical-align:top}
 </div>
 <div class="field" style="grid-column: span 2">
 <label for="categorie">Catégorie</label>
-<select id="categorie">
-<option value=\"\" selected>Choisir</option><option value="">Toutes</option></select>
+<select id="categorie"><option value="">Toutes</option></select>
 </div>
 <div class="field" id="sexe-field" style="grid-column: span 2">
 <label for="sexe">Sexe</label>
-<select id="sexe">
-<option value=\"\" selected>Choisir</option><option value="">Tous</option><option value="H">Homme</option><option value="F">Femme</option></select>
+<select id="sexe"><option value="">Tous</option><option value="H">Homme</option><option value="F">Femme</option></select>
 </div>
 <div class="field" id="arme-field" style="grid-column: span 2">
 <label for="arme">Arme</label>
-<select id="arme">
-<option value=\"\" selected>Choisir</option><option value="">Toutes</option></select>
+<select id="arme"><option value="">Toutes</option></select>
 </div>
 <div class="field" style="grid-column: span 4">
 <label for="departement">Département</label>
@@ -814,7 +811,7 @@ if(!state.disciplineIndiv){
         const q = (state.filters && state.filters.search || '').trim();
         if(!q){
           hint.textContent='Saisissez une recherche ou choisissez une discipline.';
-          document.getElementById('thead-row').innerHTML=''; document.getElementById('tbody').innerHTML='';
+          document.getElementById('table').innerHTML='';
           document.getElementById('totalChip').textContent='0 lignes';
           return;
         }
@@ -2582,54 +2579,76 @@ document.addEventListener('DOMContentLoaded',function(){
 </script>
 
 
-<script>
-(function() {
-  function ensureChoisir(select) {
-    if (!select) return;
-    var first = select.options[0];
-    if (!first || !/^\s*Choisir\s*$/i.test(first.text)) {
-      var opt = document.createElement('option');
-      opt.value = "";
-      opt.text = "Choisir";
-      select.insertBefore(opt, select.firstChild);
-      first = opt;
-    } else {
-      first.value = "";
-      first.text = "Choisir";
+<script id="discipline-normalizer-national-s">
+(function(){
+  function normDisc(v){
+    v = (v==null ? '' : String(v)).trim();
+    var up = v.toUpperCase();
+    if (up === 'NATIONAL_S') return 'S';
+    return v;
+  }
+  function normalizeRow(row){
+    if (!row || typeof row !== 'object') return;
+    var keys = Object.keys(row);
+    keys.forEach(function(k){
+      var ku = k.toUpperCase();
+      if (ku === 'DISCIPLINE' || ku === 'CODE_DISCIPLINE' || ku === 'DISCIPLINE_CODE' || ku === 'DISC' || ku === 'DISC_CODE'){
+        var nv = normDisc(row[k]);
+        if (nv !== row[k]) row[k] = nv;
+      }
+    });
+  }
+  function normalizeTeam(){
+    try{
+      if (!window.state || !Array.isArray(state.teamRaw)) return false;
+      state.teamRaw.forEach(normalizeRow);
+      return true;
+    }catch(e){ return false; }
+  }
+  function normalizeIndivMap(){
+    try{
+      if (!window.state || !(state.rawByDiscipline instanceof Map)) return false;
+      var nat = state.rawByDiscipline.get('National_S') || state.rawByDiscipline.get('NATIONAL_S') || [];
+      var ess = state.rawByDiscipline.get('S') || [];
+      (nat || []).forEach(normalizeRow);
+      (ess || []).forEach(normalizeRow);
+      var merged = Array.isArray(ess) ? ess.slice() : [];
+      if (Array.isArray(nat) && nat.length) merged = merged.concat(nat);
+      if (merged.length){
+        state.rawByDiscipline.set('S', merged);
+      }
+      return true;
+    }catch(e){ return false; }
+  }
+  function normalizeDisciplineSelect(){
+    var sel = document.getElementById('discipline');
+    if (!sel) return;
+    for (var i=0;i<sel.options.length;i++){
+      var o = sel.options[i];
+      var v = (o.value||'').trim();
+      if (/^National_S$/i.test(v)) { o.value = 'S'; }
+      if (o.text && /tir\s*à\s*18m/i.test(o.text) && !o.value) { o.value = 'S'; }
     }
-    select.selectedIndex = 0;
   }
-
-  function byIdsOrNames(idsOrNames) {
-    var found = [];
-    idsOrNames.forEach(function(id){
-      var el = document.getElementById(id);
-      if (el) found.push(el);
-      if (!el) {
-        var byName = document.querySelector('select[name="'+id+'"]');
-        if (byName) found.push(byName);
+  function once(){
+    var ok1 = normalizeTeam();
+    var ok2 = normalizeIndivMap();
+    normalizeDisciplineSelect();
+    return ok1 || ok2;
+  }
+  function runWhenReady(){
+    var tries = 0, maxTries = 30;
+    var t = setInterval(function(){
+      tries++;
+      if (once() || tries>=maxTries){
+        clearInterval(t);
       }
-    });
-    return found;
+    }, 500);
   }
-
-  function init() {
-    var selects = new Set();
-    byIdsOrNames(["cat", "categorie", "catégorie", "sexe", "sex", "arme", "weapon"]).forEach(function(s){ if(s) selects.add(s); });
-    document.querySelectorAll('label').forEach(function(label){
-      var t = (label.textContent || "").toLowerCase();
-      if (/cat(é|e)gorie|cat/.test(t) || /sexe|sex/.test(t) || /arme|weapon/.test(t)) {
-        var next = label.nextElementSibling;
-        if (next && next.tagName === 'SELECT') selects.add(next);
-      }
-    });
-    selects.forEach(ensureChoisir);
-  }
-
-  if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", init);
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', runWhenReady);
   } else {
-    init();
+    runWhenReady();
   }
 })();
 </script>
