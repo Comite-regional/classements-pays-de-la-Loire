@@ -59,6 +59,11 @@ th.inscr-col, td.inscr-col{ text-align:center; white-space:nowrap; }
 /* qi-leftbar */
 tr.qi-ok  td:first-child{ box-shadow: inset 4px 0 rgba(34,197,94,0.6); }
 tr.qi-warn td:first-child{ box-shadow: inset 4px 0 rgba(234,88,12,0.6); }
+
+@media (max-width: 768px){
+  #tableau td, #tableau th{ white-space:nowrap }
+}
+
 </style>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&amp;display=swap" rel="stylesheet"/>
 <style id="force-inter-font">
@@ -292,7 +297,7 @@ tr.hover-sync, #inscriptions-panel .item.hover-sync{ outline: 2px solid #94a3b8;
 </style>
 <style id="sticky-thead-added">
 /* Sticky table header (safe addition) */
-.table-container thead th, thead th { position: sticky; top: 0; z-index: 1; background: inherit; }
+.table-container thead th, thead th { position: sticky; top: 0; z-index: 1; background: var(--thead, #fff); }
 </style>
 
   <!-- Injected by ChatGPT: brand colors from logo -->
@@ -470,6 +475,76 @@ function labelifyDisc(x){
   #btnExportVisible:hover { background: #15803d !important; } /* green-700 */
 </style>
 
+
+<style id="responsive-enhancements-2025-10-09">
+/* --- Responsive layout enhancements --- */
+.table-wrap{width:100%;overflow-x:auto;-webkit-overflow-scrolling:touch}
+/* Keep a reasonable minimum width so the table can scroll on phones */
+#tableau{width:max-content}
+
+.btn-bar, .actions, .chips{display:flex;flex-wrap:wrap;gap:8px}
+
+@media (max-width: 1200px){
+  .container{padding:12px}
+}
+
+@media (max-width: 960px){
+  .filters{grid-template-columns:repeat(2,minmax(0,1fr))}
+}
+
+@media (max-width: 640px){
+  header{padding:14px 12px}
+  h1{font-size:18px}
+  .container{padding:10px}
+  .card{padding:10px}
+  .filters{grid-template-columns:1fr}
+  label{font-size:11px}
+  select,input[type="search"],input[type="text"],input[type="number"]{padding:9px}
+  th,td{padding:8px}
+  .chip{font-size:11px}
+}
+
+/* Modal / popup sizing */
+#teamModal .modal-content, #rp-results-modal .modal-content{
+  width:min(960px,95vw);
+  max-height:85vh;
+  overflow:auto;
+  border-radius:12px;
+}
+/* Avoid text overflow on narrow screens */
+table{word-break:normal}
+td,th{vertical-align:top}
+</style>
+
+
+<style id="club-col-narrow-2025-10-09">
+/* Make the Club/Cie column narrower with ellipsis */
+#tableau th.col-club, #tableau td.col-club{
+  max-width: 180px;
+  width: 180px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+@media (max-width: 640px){
+  #tableau th.col-club, #tableau td.col-club{ max-width: 130px; width: 130px; }
+}
+</style>
+
+
+<style id="dept-col-narrow-2025-10-09">
+#tableau th.col-dept, #tableau td.col-dept{
+  max-width: 110px;
+  width: 110px;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+@media (max-width: 640px){
+  #tableau th.col-dept, #tableau td.col-dept{ max-width: 90px; width: 90px; }
+}
+</style>
+
 </head>
 <body>
 <div class="quota-banner" hidden="" id="quota-banner"></div>
@@ -506,15 +581,18 @@ function labelifyDisc(x){
 </div>
 <div class="field" style="grid-column: span 2">
 <label for="categorie">Catégorie</label>
-<select id="categorie"><option value="">Toutes</option></select>
+<select id="categorie">
+<option value=\"\" selected>Choisir</option><option value="">Toutes</option></select>
 </div>
 <div class="field" id="sexe-field" style="grid-column: span 2">
 <label for="sexe">Sexe</label>
-<select id="sexe"><option value="">Tous</option><option value="H">Homme</option><option value="F">Femme</option></select>
+<select id="sexe">
+<option value=\"\" selected>Choisir</option><option value="">Tous</option><option value="H">Homme</option><option value="F">Femme</option></select>
 </div>
 <div class="field" id="arme-field" style="grid-column: span 2">
 <label for="arme">Arme</label>
-<select id="arme"><option value="">Toutes</option></select>
+<select id="arme">
+<option value=\"\" selected>Choisir</option><option value="">Toutes</option></select>
 </div>
 <div class="field" style="grid-column: span 4">
 <label for="departement">Département</label>
@@ -726,14 +804,17 @@ async function ensureAllIndivLoaded(){
     function applyFiltersTeam_Normal(data){ const f=state.filters; const disc=(state.disciplineTeam||'').toUpperCase(); return data.filter(r=>{ const code=getTeamDisciplineCode(r); if(code==='S') return false; if(disc && code!==disc) return false; if(f.categorie){ const v=(r.CATEGORIE_CLASSEMENT||r.CAT_CLASS||'').toString(); if(v!==f.categorie) return false; } if(f.departement){ const dep=getDeptFromCodeStructure(r.CODE_STRUCTURE); if(dep!==f.departement) return false; } if(f.search){ const q=f.search.toLowerCase(); const eq=(r.NOM_EQ||r.NOM_EQUIPE||r.EQUIPE||'').toLowerCase(); const club=((r.NOM_STRUCTURE||'')+' '+(r.NOM_ABREGE||'')).toLowerCase(); if(!eq.includes(q) && !club.includes(q)) return false; } return true; }); }
 
     // ========= REFRESH =========
-    async function refresh(){ updateChips(); const hint=document.getElementById('dataset-hint'); const teamNote=document.getElementById('team-note'); const sexeField=document.getElementById('sexe-field'); const armeField=document.getElementById('arme-field'); sexeField && sexeField.classList && sexeField.classList.toggle('hidden', state.viewMode==='team'); armeField && armeField.classList && armeField.classList.toggle('hidden', state.viewMode==='team'); if(state.viewMode==='team'){ teamNote.classList.remove('hidden'); document.getElementById('tae-section').classList.add('hidden'); document.getElementById('para-section').classList.add('hidden'); DISC_SELECT.innerHTML='<option value="">— Choisir —</option>'; await ensureTeamLoaded(); populateDisciplineForTeam(); DISC_SELECT.value=state.disciplineTeam||''; populateTeamCategories(); document.getElementById('categorie').value=state.filters.categorie||''; const disc=(state.disciplineTeam||'').toUpperCase(); const is18=(disc==='18M_AUTO'); // masquer ces filtres en équipe
-        sexeField && sexeField.classList && sexeField.classList.toggle('hidden', true);
-        armeField && armeField.classList && armeField.classList.toggle('hidden', true); if(!disc){ hint.textContent='Sélectionnez une discipline (Équipe).'; document.getElementById('thead-row').innerHTML=''; document.getElementById('tbody').innerHTML=''; document.getElementById('totalChip').textContent='0 lignes'; return; } if(is18){ renderTableTeam_18mAuto(); return; } const isTAEIAutoCat = (disc==='T') && TEAMTAEI_GROUPS.includes(state.filters.categorie||''); if(isTAEIAutoCat){ renderTableTeam_TAEIAuto(); return; } const filtered=applyFiltersTeam_Normal(state.teamRaw||[]); hint.textContent=TEAM_FILE+' chargé ('+(state.teamRaw||[]).length+' lignes).'; renderTableTeam_Normal(filtered); return; } // INDIV
-      teamNote.classList.add('hidden'); DISC_SELECT.innerHTML=INDIV_OPTIONS_HTML; DISC_SELECT.value=state.disciplineIndiv||''; showHideSectionsIndiv(); if(!state.disciplineIndiv){
+    async function refresh(){ updateChips(); const hint=document.getElementById('dataset-hint'); const teamNote=document.getElementById('team-note'); const sexeField=document.getElementById('sexe-field'); const armeField=document.getElementById('arme-field'); if(state.viewMode==='team'){ teamNote.classList.remove('hidden'); document.getElementById('tae-section').classList.add('hidden'); document.getElementById('para-section').classList.add('hidden'); DISC_SELECT.innerHTML='<option value="">— Choisir —</option>'; await ensureTeamLoaded(); populateDisciplineForTeam(); DISC_SELECT.value=state.disciplineTeam||''; populateTeamCategories(); document.getElementById('categorie').value=state.filters.categorie||''; const disc=(state.disciplineTeam||'').toUpperCase(); const is18=(disc==='18M_AUTO'); // masquer ces filtres en équipe
+        sexeField.classList.add('hidden'); armeField.classList.add('hidden'); if(!disc){ hint.textContent='Sélectionnez une discipline (Équipe).'; document.getElementById('thead-row').innerHTML=''; document.getElementById('tbody').innerHTML=''; document.getElementById('totalChip').textContent='0 lignes'; return; } if(is18){ renderTableTeam_18mAuto(); return; } const isTAEIAutoCat = (disc==='T') && TEAMTAEI_GROUPS.includes(state.filters.categorie||''); if(isTAEIAutoCat){ renderTableTeam_TAEIAuto(); return; } const filtered=applyFiltersTeam_Normal(state.teamRaw||[]); hint.textContent=TEAM_FILE+' chargé ('+(state.teamRaw||[]).length+' lignes).'; renderTableTeam_Normal(filtered); return; } // INDIV
+      teamNote.classList.add('hidden'); DISC_SELECT.innerHTML=INDIV_OPTIONS_HTML; DISC_SELECT.value=state.disciplineIndiv||''; showHideSectionsIndiv(); 
+// Ensure sexe & arme filters are shown again when returning to Individual mode
+try { if (typeof sexeField !== 'undefined' && sexeField) sexeField.classList.remove('hidden'); } catch(e) {}
+try { if (typeof armeField !== 'undefined' && armeField) armeField.classList.remove('hidden'); } catch(e) {}
+if(!state.disciplineIndiv){
         const q = (state.filters && state.filters.search || '').trim();
         if(!q){
           hint.textContent='Saisissez une recherche ou choisissez une discipline.';
-          document.getElementById('table').innerHTML='';
+          document.getElementById('thead-row').innerHTML=''; document.getElementById('tbody').innerHTML='';
           document.getElementById('totalChip').textContent='0 lignes';
           return;
         }
@@ -746,7 +827,10 @@ async function ensureAllIndivLoaded(){
         hint.textContent='Recherche multi-discipline ('+filteredInd.length+' lignes).';
         renderTableIndiv(filteredInd);
         return;
-      } const data=await ensureDisciplineLoadedIndiv(); hint.textContent=filesMap[state.disciplineIndiv]+' chargé ('+data.length+' lignes).'; populateDependentFiltersIndiv(data); document.getElementById('categorie').value=state.filters.categorie||''; document.getElementById('arme').value=state.filters.arme||''; document.getElementById('distance').value=state.filters.distance||''; document.getElementById('blason').value=state.filters.blason||''; document.getElementById('catClass').value=state.filters.catClass||''; document.getElementById('catTir').value=state.filters.catTir||''; const filteredInd=applyFiltersIndiv(data); renderTableIndiv(filteredInd); }
+      } const data=await ensureDisciplineLoadedIndiv(); hint.textContent=filesMap[state.disciplineIndiv]+' chargé ('+data.length+' lignes).'; populateDependentFiltersIndiv(data); document.getElementById('categorie').value=state.filters.categorie||''; document.getElementById('arme').value=state.filters.arme||''; document.getElementById('distance').value=state.filters.distance||''; document.getElementById('blason').value=state.filters.blason||''; document.getElementById('catClass').value=state.filters.catClass||''; document.getElementById('catTir').value=state.filters.catTir||''; 
+// Restore 'sexe' value from state when in Individual mode
+try { document.getElementById('sexe').value = (state.filters && state.filters.sexe) ? state.filters.sexe : ''; } catch(e) {}
+const filteredInd=applyFiltersIndiv(data); renderTableIndiv(filteredInd); }
 
     // ========= EXPORT =========
     function exportCurrentCSV(){ if(state.viewMode==='team'){ const disc=(state.disciplineTeam||'').toUpperCase(); if(!disc){ alert('Choisissez une discipline (Équipe).'); return; } if(disc==='18M_AUTO'){ const group = state.filters.categorie || TEAM18_GROUPS[0]; loadCSV(TEAM18_FILE).then(all=>{ const teams=buildTeams18(all, group); const depFilter=state.filters.departement||''; const filtered = depFilter? teams.filter(t=> t.DEPARTEMENT===depFilter) : teams; const headers=['Rang']; if(depFilter){ headers.push('Département','Rang dép.'); } headers.push('Équipe','3 scores','Total équipe'); const csvRows = filtered.map((t,i)=>{ const rankDep = depFilter? (i+1) : ''; const row = depFilter? [t.RANG, t.DEPARTEMENT, rankDep, t.CLUB, t.SCORES_INT.join(' / '), Math.round(t.TOTAL_EQ)] : [t.RANG, t.CLUB, t.SCORES_INT.join(' / '), Math.round(t.TOTAL_EQ)]; return row.map(v=> '"'+String(v).replaceAll('"','""')+'"').join(';'); }); const csv=[headers.join(';')].concat(csvRows).join('\n'); const blob=new Blob([csv],{type:'text/csv;charset=utf-8'}); const url=URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download='equipes_18m_'+group.replaceAll(' ','_')+'.csv'; document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url); }); return; } if(disc==='T' && TEAMTAEI_GROUPS.includes(state.filters.categorie||'')){ const group = state.filters.categorie || TEAMTAEI_GROUPS[0]; loadCSV(filesMap['TAE I']).then(all=>{ const teams=buildTeamsTAEI(all, group); const depFilter=state.filters.departement||''; const filtered = depFilter? teams.filter(t=> t.DEPARTEMENT===depFilter) : teams; const headers=['Rang']; if(depFilter){ headers.push('Département','Rang dép.'); } headers.push('Équipe','3 scores','Total équipe'); const csvRows = filtered.map((t,i)=>{ const rankDep = depFilter? (i+1) : ''; const row = depFilter? [t.RANG, t.DEPARTEMENT, rankDep, t.CLUB, t.SCORES_INT.join(' / '), Math.round(t.TOTAL_EQ)] : [t.RANG, t.CLUB, t.SCORES_INT.join(' / '), Math.round(t.TOTAL_EQ)]; return row.map(v=> '"'+String(v).replaceAll('"','""')+'"').join(';'); }); const csv=[headers.join(';')].concat(csvRows).join('\n'); const blob=new Blob([csv],{type:'text/csv;charset=utf-8'}); const url=URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download='equipes_TAEI_'+group.replaceAll(' ','_')+'.csv'; document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url); }); return; } // EXPORT NORMAL
@@ -2249,40 +2333,305 @@ document.addEventListener('DOMContentLoaded', function(){
 
 
 <script>
-// Réinitialiser : recharge proprement toute la page (réel reset de l'état)
+// Recherche rapide : Catégorie, Sexe, Arme juste après Nom & Prénom (Individuel sans discipline)
 (function(){
-  function onHardReset(e){
-    try{
-      e.preventDefault(); e.stopPropagation();
-    }catch(_){}
-    // Nettoyer quelques états potentiels
-    try{ if (window.state) { state._savedIndiv = null; state._lastViewMode = null; } }catch(_){}
-    try{ if ('scrollRestoration' in history) history.scrollRestoration = 'manual'; }catch(_){}
-    // Reload dur (revient à l'état initial du HTML + rechargement CSV)
-    location.reload();
-    return false;
+  if (window.__quickColsOrdered) return; window.__quickColsOrdered = true;
+
+  // 1) Enrichit les lignes avec Catégorie / Sexe / Arme sans toucher à la fonction d'origine
+  if (typeof window.buildDisplayRowIndiv === 'function'){
+    const __origBuild = window.buildDisplayRowIndiv;
+    window.buildDisplayRowIndiv = function(r){
+      const o = __origBuild(r) || {};
+      if (o.CATEGORIE == null || o.CATEGORIE === '') o.CATEGORIE = r.CATEGORIE || r.CAT || r.CATEGORIE_CLUB || '';
+      if (o.SEXE == null || o.SEXE === '') o.SEXE = r.SEXE || '';
+      if (o.ARME == null || o.ARME === '') o.ARME = r.ARME || r.ARC || '';
+      return o;
+    };
   }
-  function wireHardReset(){
-    var btn =
-      document.getElementById('reset') ||
-      document.getElementById('resetBtn') ||
-      document.querySelector('[data-action="reset"]') ||
-      Array.from(document.querySelectorAll('button, a, input[type="button"], input[type="submit"]'))
-        .find(function(el){ return /réinitialiser/i.test((el.value||el.textContent||'').trim()); });
-    if(!btn || btn.__hardResetWired) return;
-    btn.addEventListener('click', onHardReset, true); // capture pour passer avant les handlers existants
-    btn.__hardResetWired = true;
+
+  // 2) Place ces colonnes juste après Nom/Prénom quand on est en recherche rapide multi-discipline
+  if (typeof window.headersForIndiv === 'function'){
+    const __origHeaders = window.headersForIndiv;
+    window.headersForIndiv = function(){
+      const base = __origHeaders() || [];
+      try{
+        const isQuick = (!state.disciplineIndiv || state.disciplineIndiv === '') &&
+                        state.viewMode === 'indiv' &&
+                        state.filters && state.filters.search;
+        if (!isQuick) return base;
+
+        // Trouver la position de Nom / Prénom (par key ou label)
+        function norm(x){ return (x||'').toString().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,''); }
+        let idxNom = -1, idxPre = -1;
+        base.forEach((c,i)=>{
+          const k = norm(c.key), l = norm(c.label);
+          if (idxNom < 0 && (k.includes('nom') || l === 'nom')) idxNom = i;
+          if (idxPre < 0 && (k.includes('prenom') || l === 'prenom')) idxPre = i;
+        });
+        let insertAt = Math.max(idxNom, idxPre);
+        if (insertAt < 0) insertAt = 1; // fallback : après la 1ère col
+
+        // Retirer d'éventuels doublons déjà présents
+        const wantKeys = ['CATEGORIE','SEXE','ARME'];
+        for (let i = base.length - 1; i >= 0; i--) {
+          if (wantKeys.includes(base[i].key)) base.splice(i,1);
+        }
+
+        // Insérer juste après Nom/Prénom dans l'ordre demandé
+        const toInsert = [
+          {key:'CATEGORIE', label:'Catégorie'},
+          {key:'SEXE',      label:'Sexe'},
+          {key:'ARME',      label:'Arme'}
+        ];
+        base.splice(insertAt + 1, 0, ...toInsert);
+      }catch(e){}
+      return base;
+    };
   }
-  if (document.readyState === 'loading'){
-    document.addEventListener('DOMContentLoaded', wireHardReset);
-  } else {
-    wireHardReset();
-  }
-  // Sécurité : si le DOM est reconstruit
-  var mo = new MutationObserver(function(){ wireHardReset(); });
-  try{ mo.observe(document.body, {childList:true, subtree:true}); }catch(_){}
 })();
 </script>
 
+
+<script id="responsive-helper-2025-10-09">
+document.addEventListener('DOMContentLoaded',function(){
+  var t = document.getElementById('tableau');
+  if(t && (!t.parentElement || !t.parentElement.classList || !t.parentElement.classList.contains('table-wrap'))){
+    var w = document.createElement('div');
+    w.className = 'table-wrap';
+    t.parentNode.insertBefore(w, t);
+    w.appendChild(t);
+  }
+});
+</script>
+
+
+<script id="club-col-narrow-script-2025-10-09">
+(function(){
+  function markClubColumn(){
+    var table = document.getElementById('tableau');
+    if(!table) return;
+    var theadRow = document.getElementById('thead-row') || (table.tHead && table.tHead.rows[0]);
+    if(!theadRow) return;
+    var idx = -1;
+    var cells = Array.from(theadRow.children || []);
+    cells.forEach(function(th,i){
+      var txt = (th.textContent || '').toLowerCase().trim();
+      if(idx === -1 && (txt.includes('club') || txt.includes('cie'))){ idx = i; }
+    });
+    if(idx === -1) return;
+    // add class to header
+    var th = cells[idx];
+    if(th) th.classList.add('col-club');
+    // add class to every row cell in this column
+    var body = table.tBodies && table.tBodies[0];
+    if(body){
+      for(var r=0;r<body.rows.length;r++){
+        var td = body.rows[r].cells[idx];
+        if(td) td.classList.add('col-club');
+      }
+    }
+  }
+
+  // Run now, and again after DOM changes (the app repopulates the table)
+  var run = function(){ try{ markClubColumn(); }catch(e){} };
+  document.addEventListener('DOMContentLoaded', run);
+  // In case table fills after fetch/render, try a few times
+  var attempts = 0;
+  var iv = setInterval(function(){
+    attempts++;
+    run();
+    if(attempts>10) clearInterval(iv);
+  }, 300);
+
+  // Observe mutations to re-apply on table structure changes
+  var table = document.getElementById('tableau');
+  if(table){
+    var obs = new MutationObserver(function(){ run(); });
+    obs.observe(table, { childList:true, subtree:true });
+  }
+})();
+</script>
+
+
+<script id="dept-col-narrow-script-2025-10-09">
+(function(){
+  function txt(n){ return (n && n.textContent || '').trim(); }
+  function isTeamView(){
+    try{ if(window.state && state.view==='team') return true; }catch(e){}
+    var tr = document.getElementById('thead-row');
+    if(!tr) return false;
+    return Array.from(tr.children||[]).some(th => /équipe|equipe/i.test(txt(th)));
+  }
+  function apply(){
+    var table = document.getElementById('tableau');
+    if(!table || !table.tHead || !table.tBodies[0]) return;
+    if(!isTeamView()) return;
+    var ths = Array.from(table.tHead.rows[0].cells||[]);
+    var idx = -1;
+    ths.forEach(function(th,i){
+      var t = txt(th).toLowerCase();
+      if(idx === -1 && /(département|departement|dept)/.test(t)) idx = i;
+    });
+    if(idx === -1) return;
+    // mark header
+    ths[idx].classList.add('col-dept');
+    // mark body cells
+    Array.from(table.tBodies[0].rows).forEach(function(tr){
+      var td = tr.cells[idx];
+      if(td) td.classList.add('col-dept');
+    });
+  }
+  var scheduled=false;
+  function schedule(){
+    if(scheduled) return;
+    scheduled = true;
+    requestAnimationFrame(function(){ scheduled=false; apply(); });
+  }
+  document.addEventListener('DOMContentLoaded', schedule);
+  var table = document.getElementById('tableau');
+  if(table){
+    var obs = new MutationObserver(schedule);
+    obs.observe(table, {childList:true, subtree:true});
+  }
+  // Also catch a custom event if emitted after team renders
+  document.addEventListener('table:updated', schedule);
+})();
+</script>
+
+
+<style id="team18-rankdep-style-2025-10-09">
+/* compact 'Rang dép.' column */
+#tableau th.rang-dep, #tableau td.rang-dep{
+  width: 100px; max-width:100px; text-align:center; white-space:nowrap;
+  font-variant-numeric: tabular-nums;
+}
+</style>
+
+<script id="team18-normalizer-2025-10-09">
+(function(){
+  function txt(n){ return (n && n.textContent || '').trim(); }
+  function is18mTeam(){
+    try { if (window.state && (state.disciplineTeam === '18M_AUTO' || state.disciplineTeam === 'Tir 18m')) return true; } catch(e){}
+    const tr = document.getElementById('thead-row');
+    if(!tr) return false;
+    const labels = Array.from(tr.children||[]).map(th => txt(th).toLowerCase());
+    return (labels.includes('score 1') || labels.includes('score1')) &&
+           (labels.includes('équipes') || labels.includes('equipes'));
+  }
+
+  function normalize(){
+    const table = document.getElementById('tableau');
+    if(!table || !table.tHead || !table.tBodies[0]) return;
+    if(!is18mTeam()) return;
+
+    const tbody = table.tBodies[0];
+    const rows = Array.from(tbody.rows);
+    if(!rows.length) return;
+
+    let changed = false;
+    rows.forEach(tr => {
+      const td = Array.from(tr.cells);
+      if (td.length < 6) return;
+
+      const vDept   = txt(td[1]);              // ex "44"
+      const teamTD  = td[3];
+      const triple  = txt(td[4]);              // ex "553 / 503 / 491"
+      const teamA   = teamTD && teamTD.querySelector && teamTD.querySelector('a');
+      const mTriple = triple.match(/^\s*(\d{2,3})\s*\/\s*(\d{2,3})\s*\/\s*(\d{2,3})\s*$/);
+
+      // Bug pattern: [ Rang | Dept | Rang dép | Équipe(lien) | "s1 / s2 / s3" | Total ]
+      if (/^\d{1,3}$/.test(vDept) && teamA && mTriple) {
+        const rang  = txt(td[0]);
+        const team  = teamA.outerHTML || teamTD.innerHTML;
+        const s1 = mTriple[1], s2 = mTriple[2], s3 = mTriple[3];
+        const total = txt(td[5]);
+
+        tr.innerHTML =
+          `<td>${rang}</td>` +
+          `<td>${team}</td>` +
+          `<td style="text-align:center">${s1}</td>` +
+          `<td style="text-align:center">${s2}</td>` +
+          `<td style="text-align:center">${s3}</td>` +
+          `<td style="text-align:center">${total}</td>`;
+        changed = true;
+      }
+    });
+
+    if (changed) {
+      table.tHead.rows[0].innerHTML = `
+        <th>Rang</th>
+        <th>Équipes</th>
+        <th>Score 1</th>
+        <th>Score 2</th>
+        <th>Score 3</th>
+        <th>Total équipe</th>`;
+    }
+  }
+
+  let scheduled = false;
+  function schedule(){ if(scheduled) return; scheduled = true; requestAnimationFrame(()=>{ scheduled=false; normalize(); }); }
+
+  document.addEventListener('DOMContentLoaded', schedule);
+  const table = document.getElementById('tableau');
+  if (table) {
+    const obs = new MutationObserver(schedule);
+    obs.observe(table, {childList:true, subtree:true});
+  }
+  document.addEventListener('table:updated', schedule);
+})();
+</script>
+
+
+<script>
+(function() {
+  function ensureChoisir(select) {
+    if (!select) return;
+    var first = select.options[0];
+    if (!first || !/^\s*Choisir\s*$/i.test(first.text)) {
+      var opt = document.createElement('option');
+      opt.value = "";
+      opt.text = "Choisir";
+      select.insertBefore(opt, select.firstChild);
+      first = opt;
+    } else {
+      first.value = "";
+      first.text = "Choisir";
+    }
+    select.selectedIndex = 0;
+  }
+
+  function byIdsOrNames(idsOrNames) {
+    var found = [];
+    idsOrNames.forEach(function(id){
+      var el = document.getElementById(id);
+      if (el) found.push(el);
+      if (!el) {
+        var byName = document.querySelector('select[name="'+id+'"]');
+        if (byName) found.push(byName);
+      }
+    });
+    return found;
+  }
+
+  function init() {
+    var selects = new Set();
+    byIdsOrNames(["cat", "categorie", "catégorie", "sexe", "sex", "arme", "weapon"]).forEach(function(s){ if(s) selects.add(s); });
+    document.querySelectorAll('label').forEach(function(label){
+      var t = (label.textContent || "").toLowerCase();
+      if (/cat(é|e)gorie|cat/.test(t) || /sexe|sex/.test(t) || /arme|weapon/.test(t)) {
+        var next = label.nextElementSibling;
+        if (next && next.tagName === 'SELECT') selects.add(next);
+      }
+    });
+    selects.forEach(ensureChoisir);
+  }
+
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", init);
+  } else {
+    init();
+  }
+})();
+</script>
 </body>
 </html>
